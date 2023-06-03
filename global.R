@@ -1,0 +1,573 @@
+#-----------import library yang dibutuhkan--------------
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(plotly)
+library(lubridate)
+library(stringr)
+library(tidyr)
+library(extrafont)
+library(glue)
+library(scales)
+library(zoo)
+library(DT)
+library(shiny)
+library(shinydashboard)
+library(rsconnect)
+library(leaflet)
+library(geojsonio)
+library(htmlwidgets)
+library(htmltools)
+library(prettydoc)
+library(echarts4r)
+library(countrycode)
+library(shiny)
+library(echarts4r)
+library(countrycode)
+
+# Import Dataset per Setiap Negara (Iraq dan Libya tidak didapatkan datasetnya)
+pakistan <- read_excel("datainput/pakistanstrike.xlsx")
+yemen <- read_excel("datainput/yemenstrike.xlsx")
+somalia <- read_excel("datainput/somaliastrike.xlsx")
+afghanistan <- read_excel("datainput/afghanstrike.xlsx")
+
+#---------------Data Preparation-----------------------
+
+# Melakukan cleansing data dana penyesuaian data yang dibutuhkan
+
+# Negara Pakistan
+pakistan <- 
+  pakistan %>% 
+  mutate(Province = ifelse(grepl("South Waziristan|North Waziristan|Bajaur Agency|Bannu Frontier Region|Kurram Agency|Orakzai Agency|Khyber Agency|North/South Waziristan|Khyber Pakhtunkhwa province|Balochistan", pakistan$Area) == TRUE, "Khyber Pakhtunkhwa",NA),
+         Minimum_strikes = 0,
+         Maximum_strikes = 1,
+         Country = "Pakistan",
+         `US Confirmed` = 0) %>% 
+  rename(`Minimum Strikes` = "Minimum_strikes",
+         `Maximum Strikes` = "Maximum_strikes",
+         `Minimum Total Killed` = "Minimum total people killed",
+         `Maximum Total Killed` = "Maximum total people killed",
+         `Minimum Civilians Killed` = "Minimum civilians reported killed",
+         `Maximum Civilians Killed` = "Maximum civilians reported killed",
+         `Minimum Children Killed` = "Minimum children reported killed",
+         `Maximum Children Killed` = "Maximum children reported killed",
+         `Minimum Injured` = "Minimum reported injured",
+         `Maximum Injured` = "Maximum reported injured") %>%
+  mutate(`US Confirmed` = as.character(`US Confirmed`)) %>%
+  select(Date, Country, Province,`US Confirmed`,`Minimum Strikes`,`Maximum Strikes`,`Minimum Total Killed`,
+         `Maximum Total Killed`,`Minimum Civilians Killed`,`Maximum Civilians Killed`,`Minimum Children Killed`,
+         `Maximum Children Killed`,`Minimum Injured`,`Maximum Injured`)
+
+
+# Negara Yemen
+yemen <- 
+  yemen %>% 
+  rename(`US Confirmed`="Confirmed/\r\npossible US attack?",
+         `Minimum Strikes` = "Minimum number of strikes",
+         `Maximum Strikes` = "Maximum number of strikes",
+         `Minimum Total Killed` = "Minimum people killed",
+         `Maximum Total Killed` = "Maximum people killed",
+         `Minimum Civilians Killed` = "Minimum civilians reported killed",
+         `Maximum Civilians Killed` = "Maximum civilians reported killed",
+         `Minimum Children Killed` = "Minimum children reported killed",
+         `Maximum Children Killed` = "Maximum children reported killed",
+         `Minimum Injured` = "Minimum people injured",
+         `Maximum Injured` = "Maximum people injured") %>% 
+  mutate(Country = "Yemen") %>% 
+  select(Date, Country, Province,`US Confirmed`,`Minimum Strikes`,`Maximum Strikes`,`Minimum Total Killed`,
+         `Maximum Total Killed`,`Minimum Civilians Killed`,`Maximum Civilians Killed`,`Minimum Children Killed`,
+         `Maximum Children Killed`,`Minimum Injured`,`Maximum Injured`)
+
+
+# Negara Somalia
+somalia <- 
+  somalia %>% 
+  mutate(Province = ifelse(grepl("Banadiir|Mogadishu|Wadajir", somalia$Location) == TRUE, "Banadiir",
+                           ifelse(grepl("Dusa Marreb|South-central Somalia|Southern Somalia|Near Gobanale|Gaduug|Gaduud|Awhiigle", somalia$Location) == TRUE, "Galguduud",
+                                  ifelse(grepl("Yasooman|Raso Camp|Hiran", somalia$Location) == TRUE, "Hiiraan",
+                                         ifelse(grepl("Middle Shabelle", somalia$Location) == TRUE, "Shabeellaha Dhexe",
+                                                ifelse(grepl("Barawe|Afgoye|Elasha Biyaha|Lower Shabelle|Guhm|Hawai|Dugule|Balad Amin|Kunyo-Barow|Kuntuwarey|Awdhegle|Dar es Salam village|Kunyo Barrow|Tortoroow|Bariire|Basra village|Idow Jalad|Mubarak|Gandarshe|Beled Amin|Kunyow Barrow|Awdeegle|Janaale|lower Shabelle|Baledogle|Qunyo Barrow|Bacaw", somalia$Location) == TRUE, "Shabeellaha Hoose",
+                                                       ifelse(grepl("Bargal|Qandala town|Puntland|Bosasso|Bari", somalia$Location) == TRUE, "Bari",
+                                                              ifelse(grepl("Galcayo|Haradere|El Burr|Debatscile|Mudug", somalia$Location) == TRUE, "Mudug",
+                                                                     ifelse(grepl("Dinsoor|Bay region", somalia$Location) == TRUE, "Bay",
+                                                                            ifelse(grepl("Baardheere", somalia$Location) == TRUE, "Gedo",
+                                                                                   ifelse(grepl("Jillib|Sakow|Jilib|Jamecco|Lebede|Basra|Middle Juba|Saakow|Dujuuma|Caliyoow Barrow", somalia$Location) == TRUE, "Jubbada Dhexe",
+                                                                                          ifelse(grepl("Ras Kamboni|Hayo|Waldena|Dhobley|Kismayo|Juba|Lower Juba|Caba|Luglaw|Jamaame|Kamsuuma|Lower Juba|Jubaland|Kobon|Bangeeni|Jamaame|Beer Xaani", somalia$Location) == TRUE, "Jubbada Hoose",
+                                                                                                 ifelse(grepl("Golis Mountains", somalia$Location) == TRUE, "Togdheer",NA)
+                                                                                          )
+                                                                                   )
+                                                                            )
+                                                                     )
+                                                              )
+                                                       )
+                                                )
+                                         )
+                                  )
+                           )
+  )
+  )
+
+somalia <- 
+  somalia %>% 
+  rename(`US Confirmed`="Confirmed/\r\npossible US strike",
+         `Minimum Strikes` = "Minimum strikes",
+         `Maximum Strikes` = "Maximum strikes",
+         `Minimum Total Killed` = "Minimum people killed",
+         `Maximum Total Killed` = "Maximum people killed",
+         `Minimum Civilians Killed` = "Minimum civilians killed",
+         `Maximum Civilians Killed` = "Maximum civilians killed",
+         `Minimum Children Killed` = "Minimum children killed",
+         `Maximum Children Killed` = "Maximum children killed",
+         `Minimum Injured` = "Minimum people injured",
+         `Maximum Injured` = "Maximum people injured") %>% 
+  mutate(Country = "Somalia") %>% 
+  select(Date, Country, Province,`US Confirmed`,`Minimum Strikes`,`Maximum Strikes`,`Minimum Total Killed`,
+         `Maximum Total Killed`,`Minimum Civilians Killed`,`Maximum Civilians Killed`,`Minimum Children Killed`,
+         `Maximum Children Killed`,`Minimum Injured`,`Maximum Injured`)
+
+
+# Negara Afghanistan
+afghanistan <- 
+  afghanistan %>% 
+  rename(`US Confirmed`="US confirmed?",
+         `Minimum Strikes` = "Minimum strikes",
+         `Maximum Strikes` = "Maximum strikes",
+         `Minimum Total Killed` = "Minimum total people killed",
+         `Maximum Total Killed` = "Maximum total people killed",
+         `Minimum Civilians Killed` = "Minimum civilians reported killed",
+         `Maximum Civilians Killed` = "Maximum civilians reported killed",
+         `Minimum Children Killed` = "Minimum children reported killed",
+         `Maximum Children Killed` = "Maximum children reported killed",
+         `Minimum Injured` = "Minimum reported injured",
+         `Maximum Injured` = "Maximum reported injured") %>% 
+  mutate(Country = "Afghanistan",
+         `US Confirmed` = as.character(`US Confirmed`)) %>%
+  select(Date, Country, Province,`US Confirmed`,`Minimum Strikes`,`Maximum Strikes`,`Minimum Total Killed`,
+         `Maximum Total Killed`,`Minimum Civilians Killed`,`Maximum Civilians Killed`,`Minimum Children Killed`,
+         `Maximum Children Killed`,`Minimum Injured`,`Maximum Injured`)
+
+# Menambahkan status konfirmasi untuk value 1 = Confirmed dan 0 = Possible
+
+# Negara Pakistan
+pakistan <- 
+  pakistan %>%
+  mutate(`US Confirmed` = ifelse(grepl("1", pakistan$`US Confirmed`) == TRUE, "Confirmed","Possible"))
+
+# Negara Afghanistan
+afghanistan <- 
+  afghanistan %>%
+  mutate(`US Confirmed` = ifelse(grepl("1", afghanistan$`US Confirmed`) == TRUE, "Confirmed","Possible"))
+
+
+# Menghubungkan empat dataset menjadi satu kesatuan dataset yang utuh
+drone_strikes <- rbind(pakistan, yemen, somalia, afghanistan) %>% 
+  arrange(Date) %>% 
+  mutate(Presidency = case_when(
+    Date <= "2009-01-20" ~ "George W. Bush",
+    Date <= "2017-01-20" ~ "Barack Obama",
+    Date <= "2021-01-20" ~ "Donald J. Trump"))
+
+#--------------------Presidency Overview------------------
+# Presiden Bush
+strikes_bush <-   
+  drone_strikes %>% 
+  filter(Presidency %in% "George W. Bush") %>% 
+  select(`Maximum Strikes`) %>% 
+  summarise(Total = sum(`Maximum Strikes`)) 
+
+kill_bush <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "George W. Bush") %>% 
+  select(`Minimum Civilians Killed`, `Maximum Civilians Killed`) %>% 
+  summarise(Min = sum(`Minimum Civilians Killed`),
+            Max = sum(`Maximum Civilians Killed`))
+civis_bush <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "George W. Bush") %>% 
+  select(`Minimum Civilians Killed`, `Maximum Civilians Killed`) %>% 
+  summarise(Min = sum(`Minimum Civilians Killed`),
+            Max = sum(`Maximum Civilians Killed`))
+
+child_bush <-   
+  drone_strikes %>% 
+  filter(Presidency %in% "George W. Bush") %>% 
+  select(`Minimum Children Killed`, `Maximum Children Killed`) %>% 
+  summarise(Min = sum(`Minimum Children Killed`),
+            Max = sum(`Maximum Children Killed`))
+
+injured_bush <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "George W. Bush") %>% 
+  select(`Minimum Injured`, `Maximum Injured`) %>% 
+  summarise(Min = sum(`Minimum Injured`),
+            Max = sum(`Maximum Injured`))
+
+# Rate Kerusakan yang terjadi
+rate_strikes_bush <- (civis_bush$Max + child_bush$Max) / kill_bush$Max
+rate_strikes_bush
+
+# Presiden Obama
+strikes_obama <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Barack Obama") %>% 
+  select(`Maximum Strikes`) %>% 
+  summarise(Total = sum(`Maximum Strikes`))
+
+kill_obama <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Barack Obama") %>% 
+  select(`Minimum Total Killed`, `Maximum Total Killed`) %>% 
+  summarise(Min = sum(`Minimum Total Killed`),
+            Max = sum(`Maximum Total Killed`))
+
+civis_obama <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Barack Obama") %>% 
+  select(`Minimum Civilians Killed`, `Maximum Civilians Killed`) %>% 
+  summarise(Min = sum(`Minimum Civilians Killed`),
+            Max = sum(`Maximum Civilians Killed`))
+
+child_obama <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Barack Obama") %>% 
+  select(`Minimum Children Killed`, `Maximum Children Killed`) %>% 
+  summarise(Min = sum(`Minimum Children Killed`),
+            Max = sum(`Maximum Children Killed`))
+
+injured_obama <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Barack Obama") %>% 
+  select(`Minimum Injured`, `Maximum Injured`) %>% 
+  summarise(Min = sum(`Minimum Injured`),
+            Max = sum(`Maximum Injured`))
+
+# Rate Kerusakan yang terjadi
+rate_strikes_obama <- (civis_obama$Max + child_obama$Max) / kill_obama$Max
+rate_strikes_obama
+
+# Presiden Trump
+strikes_trump <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Donald J. Trump") %>% 
+  select(`Maximum Strikes`) %>% 
+  summarise(Total = sum(`Maximum Strikes`))
+
+kill_trump <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Donald J. Trump") %>% 
+  select(`Minimum Total Killed`, `Maximum Total Killed`) %>% 
+  summarise(Min = sum(`Minimum Total Killed`),
+            Max = sum(`Maximum Total Killed`))
+
+civis_trump <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Donald J. Trump") %>% 
+  select(`Minimum Civilians Killed`, `Maximum Civilians Killed`) %>% 
+  summarise(Min = sum(`Minimum Civilians Killed`),
+            Max = sum(`Maximum Civilians Killed`))
+
+child_trump <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Donald J. Trump") %>% 
+  select(`Minimum Children Killed`, `Maximum Children Killed`) %>% 
+  summarise(Min = sum(`Minimum Children Killed`),
+            Max = sum(`Maximum Children Killed`))
+
+injured_trump <- 
+  drone_strikes %>% 
+  filter(Presidency %in% "Donald J. Trump") %>% 
+  select(`Minimum Injured`, `Maximum Injured`) %>% 
+  summarise(Min = sum(`Minimum Injured`),
+            Max = sum(`Maximum Injured`))
+
+# Rate Kerusakan yang terjadi
+rate_strikes_trump <- (civis_trump$Max + child_trump$Max) / kill_trump$Max
+rate_strikes_trump
+
+#-----------------------Setting Map Leaflet-------------------
+# Filtering Data
+pks <- drone_strikes %>% 
+  filter(Country %in% "Pakistan")
+ymn <- drone_strikes %>% 
+  filter(Country %in% "Yemen")
+soma <- drone_strikes %>% 
+  filter(Country %in% "Somalia")
+afg <- drone_strikes %>% 
+  filter(Country %in% "Afghanistan")
+
+# Read Data Json spasial
+pks_json <- geojson_read("datainput/clean/gadm36_PAK_1.json", what = "sp")
+
+ymn_json <- geojson_read("datainput/clean/gadm36_YEM_1.json", what = "sp")
+
+soma_json <- geojson_read("datainput/clean/gadm36_SOM_1.json", what = "sp")
+
+afg_json <- geojson_read("datainput/clean/gadm36_AFG_1.json", what = "sp")
+
+pks_json_modif <- sf::st_as_sf(pks_json)
+ymn_json_modif <- sf::st_as_sf(ymn_json)
+soma_json_modif <- sf::st_as_sf(soma_json)
+afg_json_modif <- sf::st_as_sf(afg_json)
+
+# Menghapus kolom yang tidak dibutuhkan
+pks_json_modif <- 
+  pks_json_modif %>% 
+  select(-c(id, NL_NAME_1,  VARNAME_1, HASC_1, TYPE_1, ENGTYPE_1))
+
+ymn_json_modif <- 
+  ymn_json_modif %>% 
+  select(-c(id, NL_NAME_1,  VARNAME_1, HASC_1, TYPE_1, ENGTYPE_1, GID_0, NAME_0))
+
+soma_json_modif <-
+  soma_json_modif %>% 
+  select(-c(id, NL_NAME_1,  VARNAME_1, HASC_1, TYPE_1, ENGTYPE_1, GID_0, NAME_0))
+
+afg_json_modif <-
+  afg_json_modif %>% 
+  select(-c(id, NL_NAME_1,  VARNAME_1, HASC_1, TYPE_1, ENGTYPE_1))
+
+# Menyesuaikan Nama Provinsi berdasarkan NAME_1 pada Json_modif
+# Negara Pakistan
+pakistan <- 
+  pakistan %>% 
+  mutate(Province = ifelse(grepl("Khyber Pakhtunkhwa|Badakshan", pakistan$Province) == TRUE, "F.A.T.A.","N.W.F.P."))
+
+# Negara Yemen
+yemen <- 
+  yemen %>% 
+  mutate( Province = ifelse(grepl("Abyan", yemen$Province) == TRUE, "Abyan",
+                            ifelse(grepl("Badya|Bayda|Bayda-Shabwa border", yemen$Province) == TRUE, "Al Bayda",
+                                   ifelse(grepl("Across central Yemen|Across Yemen|Between Marib and Shabwa|Central Yemen|Mareb|Marib|Marib/Al Jawf|Multiple provinces|Shabwa/Mareb border", yemen$Province) == TRUE, "Ma'rib",
+                                          ifelse(grepl("Damar", yemen$Province) == TRUE, "Dhamar",
+                                                 ifelse(grepl("Hadaramout|Hadhramout|Hadramout", yemen$Province) == TRUE, "Hadramawt",
+                                                        ifelse(grepl("Jawf|Jawf-Mareb border", yemen$Province) == TRUE, "Al Jawf",
+                                                               ifelse(grepl("Lahij|Lahj", yemen$Province) == TRUE, "Lahij",
+                                                                      ifelse(grepl("Saada", yemen$Province) == TRUE, "Sa`dah",
+                                                                             ifelse(grepl("Sanaa", yemen$Province) == TRUE, "San`a",
+                                                                                    ifelse(grepl("Southern Yemen", yemen$Province) == TRUE, "Ta`izz",
+                                                                                           ifelse(grepl("Shabwa|Shabwa/Hadramout|Shabwa/Mareb border|Shabwah", yemen$Province) == TRUE, "Shabwah", "Ma'rib"))))))))))))
+
+#Negara Somalia
+somalia <- 
+  somalia %>% 
+  mutate(Province = replace_na(Province, replace = "Bari"))
+
+# Negara Afghanistan
+afghanistan <- 
+  afghanistan %>% 
+  mutate( Province = ifelse(grepl("Badakhshan|Badakshan", afghanistan$Province) == TRUE, "Badakhshan",
+                            ifelse(grepl("Badghis", afghanistan$Province) == TRUE, "Badghis",
+                                   ifelse(grepl("Baghlan", afghanistan$Province) == TRUE, "Baghlan",
+                                          ifelse(grepl("Balkh", afghanistan$Province) == TRUE, "Balkh",
+                                                 ifelse(grepl("Farah and Nimroz", afghanistan$Province) == TRUE, "Farah",
+                                                        ifelse(grepl("Ghazni, Helmand and Uruzgan", afghanistan$Province) == TRUE, "Ghazni",
+                                                               ifelse(grepl("Helmand", afghanistan$Province) == TRUE, "Hilmand",
+                                                                      ifelse(grepl("Herat", afghanistan$Province) == TRUE, "Hirat",
+                                                                             ifelse(grepl("Jawzjan|Jowzjan", afghanistan$Province) == TRUE, "Jawzjan",
+                                                                                    ifelse(grepl("Nangarhar and Paktika", afghanistan$Province) == TRUE, "Nangarhar",
+                                                                                           ifelse(grepl("Pakita|Pakitka|Paktia|Paktika", afghanistan$Province) == TRUE, "Paktika",
+                                                                                                  ifelse(grepl("Paktiya", afghanistan$Province) == TRUE, "Paktya",
+                                                                                                         ifelse(grepl("Sar e Pul", afghanistan$Province) == TRUE, "Sari Pul",
+                                                                                                                ifelse(grepl("Unknown|-", afghanistan$Province) == TRUE, "Balkh",
+                                                                                                                       ifelse(grepl("Bamyan", afghanistan$Province) == TRUE, "Bamyan",
+                                                                                                                              ifelse(grepl("Daykundi", afghanistan$Province) == TRUE, "Daykundi",
+                                                                                                                                     ifelse(grepl("Faryab", afghanistan$Province) == TRUE, "Faryab",
+                                                                                                                                            ifelse(grepl("Ghor", afghanistan$Province) == TRUE, "Ghor",
+                                                                                                                                                   ifelse(grepl("Kabul", afghanistan$Province) == TRUE, "Kabul",
+                                                                                                                                                          ifelse(grepl("Kandahar", afghanistan$Province) == TRUE, "Kandahar",
+                                                                                                                                                                 ifelse(grepl("Kapisa", afghanistan$Province) == TRUE, "Kapisa",
+                                                                                                                                                                        ifelse(grepl("Khost", afghanistan$Province) == TRUE, "Khost",
+                                                                                                                                                                               ifelse(grepl("Kunar", afghanistan$Province) == TRUE, "Kunar",
+                                                                                                                                                                                      ifelse(grepl("Kunduz", afghanistan$Province) == TRUE, "Kunduz",
+                                                                                                                                                                                             ifelse(grepl("Laghman", afghanistan$Province) == TRUE, "Laghman",
+                                                                                                                                                                                                    ifelse(grepl("Logar", afghanistan$Province) == TRUE, "Logar",
+                                                                                                                                                                                                           ifelse(grepl("Nangarhar", afghanistan$Province) == TRUE, "Nangarhar",
+                                                                                                                                                                                                                  ifelse(grepl("Nimroz", afghanistan$Province) == TRUE, "Nimroz",
+                                                                                                                                                                                                                         ifelse(grepl("Nuristan", afghanistan$Province) == TRUE, "Nuristan",
+                                                                                                                                                                                                                                ifelse(grepl("Panjshir", afghanistan$Province) == TRUE, "Panjshir",
+                                                                                                                                                                                                                                       ifelse(grepl("Parwan", afghanistan$Province) == TRUE, "Parwan",
+                                                                                                                                                                                                                                              ifelse(grepl("Samangan", afghanistan$Province) == TRUE, "Samangan",
+                                                                                                                                                                                                                                                     ifelse(grepl("Takhar", afghanistan$Province) == TRUE, "Takhar",
+                                                                                                                                                                                                                                                            ifelse(grepl("Uruzgan", afghanistan$Province) == TRUE, "Uruzgan",
+                                                                                                                                                                                                                                                                   ifelse(grepl("Wardak", afghanistan$Province) == TRUE, "Wardak",
+                                                                                                                                                                                                                                                                          ifelse(grepl("Zabul", afghanistan$Province) == TRUE, "Zabul","Nimroz")))))))))))))))))))))))))))))))))))))
+# Melakukan Subset Data untuk membuat mapping berdasarkan tingkat intensitas terjadinya serangan drone
+pks_subset <- pakistan %>% 
+  group_by(Province) %>% 
+  summarize(Strikes = n(),
+            Death = sum(`Maximum Total Killed`)) %>% 
+  ungroup()
+
+ymn_subset <- yemen %>% 
+  group_by(Province) %>% 
+  summarize(Strikes = n(),
+            Death = sum(`Maximum Total Killed`)) %>% 
+  ungroup()
+
+soma_subset <- somalia %>% 
+  group_by(Province) %>% 
+  summarize(Strikes = n(),
+            Death = sum(`Maximum Total Killed`)) %>% 
+  ungroup()
+
+afg_subset <- afghanistan %>% 
+  group_by(Province) %>% 
+  summarize(Strikes = n(),
+            Death = sum(`Maximum Total Killed`)) %>% 
+  ungroup()
+
+# Distribusi Normal pada Data Strikes
+pq0 <- quantile(pks_subset$Strikes)[1] 
+pq25 <- quantile(pks_subset$Strikes)[2]
+pq50 <- quantile(pks_subset$Strikes)[3]
+pq75 <- quantile(pks_subset$Strikes)[4]
+pq100 <- quantile(pks_subset$Strikes)[5]
+
+yq0 <- quantile(ymn_subset$Strikes)[1] 
+yq25 <- quantile(ymn_subset$Strikes)[2]
+yq50 <- quantile(ymn_subset$Strikes)[3]
+yq75 <- quantile(ymn_subset$Strikes)[4]
+yq100 <- quantile(ymn_subset$Strikes)[5]
+
+sq0 <- quantile(soma_subset$Strikes)[1] 
+sq25 <- quantile(soma_subset$Strikes)[2]
+sq50 <- quantile(soma_subset$Strikes)[3]
+sq75 <- quantile(soma_subset$Strikes)[4]
+sq100 <- quantile(soma_subset$Strikes)[5]
+
+aq0 <- quantile(afg_subset$Strikes)[1] 
+aq25 <- quantile(afg_subset$Strikes)[2]
+aq50 <- quantile(afg_subset$Strikes)[3]
+aq75 <- quantile(afg_subset$Strikes)[4]
+aq100 <- quantile(afg_subset$Strikes)[5]
+
+# Pakistan
+convert_strikes_p = function(x){
+  if(x <= pq25) {x <- "Low"}
+  else if(x <= pq50) {x <- "Medium"}
+  else if(x <= pq75) {x <- "High"}
+  else {x <- "Very High"}
+}
+
+# Yemen
+convert_strikes_y = function(x){
+  if(x <= yq25) {x <- "Low"}
+  else if(x <= yq50) {x <- "Medium"}
+  else if(x <= yq75) {x <- "High"}
+  else {x <- "Very High"}
+}
+
+# Somalia
+convert_strikes_s = function(x){
+  if(x <= sq25) {x <- "Low"}
+  else if(x <= sq50) {x <- "Medium"}
+  else if(x <= sq75) {x <- "High"}
+  else {x <- "Very High"}
+}
+
+# Afghanistan
+convert_strikes_a = function(x){
+  if(x <= aq25) {x <- "Low"}
+  else if(x <= aq50) {x <- "Medium"}
+  else if(x <= aq75) {x <- "High"}
+  else {x <- "Very High"}
+}
+
+
+pks_subset$Intensity <- sapply(X = pks_subset$Strikes, 
+                               FUN = convert_strikes_p)
+
+ymn_subset$Intensity <- sapply(X = ymn_subset$Strikes, 
+                               FUN = convert_strikes_y)
+
+soma_subset$Intensity <- sapply(X = soma_subset$Strikes, 
+                                FUN = convert_strikes_s)
+
+afg_subset$Intensity <- sapply(X = afg_subset$Strikes, 
+                               FUN = convert_strikes_a)
+
+# Menghubungkan data Json dengan Data
+pks_jd <- pks_json_modif %>% 
+  left_join(pks_subset, by = c("NAME_1" = "Province")) %>% 
+  complete(NAME_1) %>% 
+  mutate(Strikes = replace_na(Strikes, replace = 0),
+         Death = replace_na(Death, replace = 0),
+         Intensity = replace_na(Intensity, replace = "None")) %>% 
+  select(-CC_1)
+
+# Yemen Json and Data
+ymn_jd <- ymn_json_modif %>% 
+  left_join(ymn_subset, by = c("NAME_1" = "Province")) %>% 
+  complete(NAME_1) %>% 
+  mutate(Strikes = replace_na(Strikes, replace = 0),
+         Death = replace_na(Death, replace = 0),
+         Intensity = replace_na(Intensity, replace = "None")) %>% 
+  select(-CC_1)
+
+# Somalia Json and Data
+soma_jd <- soma_json_modif %>% 
+  left_join(soma_subset, by = c("NAME_1" = "Province")) %>% 
+  complete(NAME_1) %>% 
+  mutate(Strikes = replace_na(Strikes, replace = 0),
+         Death = replace_na(Death, replace = 0),
+         Intensity = replace_na(Intensity, replace = "None")) %>% 
+  select(-CC_1)
+
+# Afghanisthan Json and Data
+afg_jd <- afg_json_modif %>% 
+  left_join(afg_subset, by = c("NAME_1" = "Province")) %>% 
+  complete(NAME_1) %>% 
+  mutate(Strikes = replace_na(Strikes, replace = 0),
+         Death = replace_na(Death, replace = 0),
+         Intensity = replace_na(Intensity, replace = "None")) %>% 
+  select(-CC_1)
+
+# Konversi kembali menjadi tipe data sf
+pks_sf <- pks_jd %>% sf::st_as_sf()
+ymn_sf <- ymn_jd %>% sf::st_as_sf()
+soma_sf <- soma_jd %>% sf::st_as_sf()
+afg_sf <- afg_jd %>% sf::st_as_sf()
+
+# Setting Aesthetics untuk Map Leaflet
+pks_sf$Intensity <- as.factor(pks_sf$Intensity)
+pks_sf$Intensity <- factor(pks_sf$Intensity,levels = c("Very High", "High", "Medium", "Low", "None"))
+factpal.p <- colorFactor(c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), pks_sf$Intensity)
+
+popup.cont.p  <- paste("<h4><b>", pks_sf$NAME_1, "</b></h4>", 
+                       "Intensity: ", pks_sf$Intensity, "<br>", 
+                       "Strikes   : ", pks_sf$Strikes, "<br>",
+                       "Death   : ", pks_sf$Death, "<br>",
+                       sep="")
+
+# Yemen
+ymn_sf$Intensity <- as.factor(ymn_sf$Intensity)
+ymn_sf$Intensity <- factor(ymn_sf$Intensity,levels = c("Very High", "High", "Medium", "Low", "None"))
+factpal.y <- colorFactor(c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), ymn_sf$Intensity)
+
+popup.cont.y  <- paste("<h4><b>", ymn_sf$NAME_1, "</b></h4>", 
+                       "Intensity: ", ymn_sf$Intensity, "<br>", 
+                       "Strikes   : ", ymn_sf$Strikes, "<br>",
+                       "Death   : ", ymn_sf$Death, "<br>",
+                       sep="")
+
+# Somalia
+soma_sf$Intensity <- as.factor(soma_sf$Intensity)
+soma_sf$Intensity <- factor(soma_sf$Intensity,levels = c("Very High", "High", "Medium", "Low", "None"))
+factpal.s <- colorFactor(c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), soma_sf$Intensity)
+
+popup.cont.s  <- paste("<h4><b>", soma_sf$NAME_1, "</b></h4>", 
+                       "Intensity: ", soma_sf$Intensity, "<br>", 
+                       "Strikes   : ", soma_sf$Strikes, "<br>",
+                       "Death   : ", soma_sf$Death, "<br>",
+                       sep="")
+
+# Afghanisthan
+afg_sf$Intensity <- as.factor(afg_sf$Intensity)
+afg_sf$Intensity <- factor(afg_sf$Intensity,levels = c("Very High", "High", "Medium", "Low", "None"))
+factpal.a <- colorFactor(c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), afg_sf$Intensity)
+
+popup.cont.a  <- paste("<h4><b>", afg_sf$NAME_1, "</b></h4>", 
+                       "Intensity: ", afg_sf$Intensity, "<br>", 
+                       "Strikes   : ", afg_sf$Strikes, "<br>",
+                       "Death   : ", afg_sf$Death, "<br>",
+                       sep="")
