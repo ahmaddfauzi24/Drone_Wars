@@ -1,0 +1,393 @@
+---
+title: "Briefing DV capstone"
+author: "Ahmad Fauzi"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    highlight: zenburn
+    df_print: paged
+    theme: flatly
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+File ini berisi template untuk mejawab pertanyaan 5W+1H saat briefing Capstone Data Visualization sebagai langkah awal sebelum membuat Dashboard. Silakan Bapak/Ibu mengisi jawaban di bawah. 
+
+File ini tidak akan dinilai namun Bapak/Ibu **WAJIB** disubmit ke dalam classroom pada hari H briefing Capstone Data Visualization.
+
+# What
+
+Tentukan tujuan atau informasi yang ingin ditampilkan dalam dashboard
+
+**Jawab**
+
+Tujuan yang ingin dicapai atau informasi yang ingin disampaikan:
+
+- Informasi Jumlah Total Laporan Serangan Drone Di Setiap Periode Presiden yakni George W. Bush, Barack Obama, dan Donald J. Trump.
+- Informasi mengenai Tingkat Korban Sipil yang menjadi korban penyerangan drone tersebut dalam persentase disetiap periode presiden yang berbeda.
+- Informasi yang bisa membandingkan total serangan drone yang sudah di konfirmasi pihak USA dengan apa yang didapatkan selama pemberitaan menggunakan dataset Data Wars.
+- Grafik Timeline Penyerangan dalam hitungan quartal yang bisa di atur sesuai periode quartal dan adanya opsi periode presiden didalamnya.
+- Informasi grafis mengenai korban meninggal dan terluka dalam serangan drone yang dilakukan USA
+- Informasi Mapping Wilayah berdasarkan intesitas serangan drone yang didapat
+
+# Who
+
+Untuk siapa dashboard ini dibuat? Siapa target pembaca dari dashboard ini?
+
+**Jawab**
+
+Dashboard ini ditujukan untuk mereka pemerhati sosial masyarakat, politik, dan keadilan sosial. Guna memberikan informasi yang bersifat lebih transparan mengenai apa yang sudah dilakukan USA terhadap beberapa negara dalam penggunaan drone tanpa awak yang menjatuhkan korban jiwa yang cukup banyak. Dimana tentunya, Penggunaan drone untuk pembunuhan di luar wilayah perang resmi menimbulkan pertanyaan tentang legalitas, akuntabilitas, dan transparansi dalam operasi drone.
+
+# Why
+
+Apakah data yang dibuat relevan atau sesuai dengan tujuan? Mengapa?
+
+**Jawab**
+
+Dataset yang saya dapatkan didapatkan langsung dari link berikut "https://dronewars.github.io/data/". Dimana mereka terdapat Dataset asli yang terdiri dari 4 dataset yang berbeda dari masing-masing Negara yang tersedia datasetnya yakni Pakistan, Yemen, Somalia dan Afghanisthan.
+# When
+
+Apakah data yang digunakan masih *up to date* atau masih relevan dengan kondisi sekarang? Apakah ada informasi tentang tanggal update terakhir dari data tersebut?
+
+**Jawab**
+
+Sudah cukup up to date, karena dataset ini memiliki periode waktu di tahun 2002 - 2020.
+
+
+# How
+
+Bagaimana Bapak/Ibu menggunakan visualisasi untuk menjawab tujuan yang telah disebutkan? 
+
+Buat plot yang akan dimasukkan ke dalam dashboard. Boleh dalam bentuk `ggplot` maupun `plotly`.
+
+**Jawab**
+
+```{r setup, include=FALSE}
+# import library yang dibutuhkan
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(plotly)
+library(lubridate)
+library(stringr)
+library(tidyr)
+library(glue)
+library(scales)
+library(zoo)
+library(leaflet)
+library(geojsonio)
+library(prettydoc)
+library(echarts4r)
+library(countrycode)
+library(echarts4r)
+library(countrycode)
+```
+
+```{r setup, include=FALSE}
+# Import dataset
+pakistan <- read_excel("datainput/pakistanstrike.xlsx")
+yemen <- read_excel("datainput/yemenstrike.xlsx")
+somalia <- read_excel("datainput/somaliastrike.xlsx")
+afghanistan <- read_excel("datainput/afghanstrike.xlsx")
+```
+
+
+Plot untuk menjawab tujuan pertama
+```{r}
+strikes_pie <- 
+    drone_strikes %>% 
+    select(Country,`Maximum Strikes`) %>% 
+    group_by(Country) %>% 
+    summarize(Strikes = sum(`Maximum Strikes`)) %>% 
+    e_charts(x = Country) %>% 
+    e_pie(Strikes, legend = FALSE) %>% 
+    e_tooltip() %>% 
+    e_title("Total Strikes Reported", "in Each Country") %>% 
+    e_theme_custom("www/jsonformatter.json")
+  
+strikes_pie
+
+```
+```{r}
+confirmed_pie <- 
+      drone_strikes %>% 
+      filter(`US Confirmed` %in% "Confirmed") %>% 
+      select(Country,`Maximum Strikes`) %>% 
+      group_by(Country) %>% 
+      summarize(Strikes = sum(`Maximum Strikes`)) %>%  
+      e_charts(x = Country) %>% 
+      e_pie(Strikes, legend = FALSE, name = "Strikes") %>% 
+      e_tooltip() %>% 
+      e_title("Strikes Confirmed by USA", "in Each Country") %>% 
+      e_theme_custom("www/jsonformatter.json")
+    
+    confirmed_pie
+```
+
+
+Plot kedua
+```{r}
+# your code here
+timeline_strikes <- 
+      drone_strikes %>% 
+      filter(Country == "Yemen") %>% 
+      select(Country, Date,`Maximum Strikes`) %>% 
+      mutate(Date = floor_date(Date, "quarter")) %>% 
+      group_by(Date, Country) %>% 
+      summarise(Strikes = sum(`Maximum Strikes`),.groups = 'drop') %>%
+      mutate(Quart = case_when(
+        month(Date) == "1" ~ "Q1",
+        month(Date) == "4" ~ "Q2",
+        month(Date) == "7" ~ "Q3",
+        month(Date) == "10" ~ "Q4"
+      )) %>% 
+      mutate(Quart = paste(year(Date), Quart),
+             Date = as.Date(Date, format = "%d-%m-%Y"))
+    
+    style <- list(
+      itemStyle = list(
+        color = "#A6655F",
+        opacity = 0.4
+      )
+    )
+    
+    line_base <- timeline_strikes %>% 
+      group_by(Country) %>% 
+      e_charts(x = Quart) %>% 
+      e_datazoom(
+        type = "slider", 
+        toolbox = FALSE
+      ) %>% 
+      e_tooltip() %>% 
+      e_title("Strikes Timeline per Quartal") %>% 
+      e_x_axis(Quart, axisPointer = list(show = TRUE)) %>% 
+      e_theme_custom("www/jsonformatter.json")
+    
+    line_plot <- line_base %>% 
+      e_line(serie=Strikes, name = "Strikes", legend = FALSE, emphasis=style)
+    line_plot
+  
+```
+```{r}
+plot_death <- 
+      drone_strikes %>% 
+      
+      filter(Country == "Yemen") %>% 
+      select(`Minimum Total Killed`, `Maximum Total Killed`, `Minimum Civilians Killed`, `Maximum Civilians Killed`, 
+             `Minimum Children Killed`, `Maximum Children Killed`) %>% 
+      pivot_longer(cols = c("Minimum Total Killed","Maximum Total Killed",
+                            "Minimum Civilians Killed", "Maximum Civilians Killed", 
+                            "Minimum Children Killed", "Maximum Children Killed"), 
+                   names_to = "Name", values_to = "Value") %>% 
+      mutate( Type = case_when(
+        Name == "Minimum Total Killed" | Name == "Maximum Total Killed" ~ "Total",
+        Name == "Minimum Civilians Killed" | Name == "Maximum Civilians Killed" ~ "Civilians",
+        Name == "Minimum Children Killed" | Name == "Maximum Children Killed" ~ "Children")) %>% 
+      mutate ( Name = case_when(
+        Name == "Minimum Total Killed" | Name == "Minimum Civilians Killed" | Name == "Minimum Children Killed" ~ "Minimum",
+        Name == "Maximum Total Killed" | Name == "Maximum Civilians Killed" | Name == "Maximum Children Killed" ~ "Maximum")) %>% 
+      group_by(Type, Name) %>% 
+      summarize(Value = sum(Value), .groups = 'drop') %>% 
+      ungroup() %>%
+      mutate(label = glue("{Type}
+                      Deaths: {comma(Value)}")) %>% 
+      ggplot(aes(Value, Type, text = label)) +
+      geom_col(aes(fill = factor(Name, levels=c("Maximum", "Minimum"))),
+               position = "stack", width = 0.7) +
+      scale_fill_manual(values = alpha(c("#1D267D", "#D4ADFC"),0.9)) +
+      scale_x_continuous(breaks = seq(0,14000,2000)) +
+      labs(title = "Death",
+           x = NULL,
+           y = NULL,
+           fill = NULL) +
+      theme(legend.position = "right",
+            legend.direction = "vertical",
+            legend.background = element_rect(fill="#C4DFDF", color = "#C4DFDF"),
+            legend.key = element_rect(fill="#C4DFDF", color = "#C4DFDF"),
+            legend.title = element_text(colour = "Black", face ="bold", size = 9, family = "Georgia"),
+            legend.text = element_text(color="Black", face ="italic", family = "Georgia"),
+            plot.background = element_rect(fill = "#C4DFDF", color = "#C4DFDF"),
+            panel.background = element_rect(fill = "#C4DFDF"),
+            panel.grid = element_line(alpha(colour = "#5C469C",alpha = 0.4)),
+            axis.title.x = element_text(colour = "Black", family = "Georgia",face = "bold"),
+            axis.text.x = element_text(angle = 15, color = "Black", face = "bold", family = "Georgia"),
+            axis.text.y = element_text(color="Black", face="italic", family = "Georgia"),
+            plot.title = element_text(face = "bold", family = "Georgia"))
+    
+ggplotly(plot_death, tooltip = "text")
+
+```
+
+```{r}
+plot_injured <- 
+      drone_strikes %>% 
+      filter(Country == "Yemen") %>% 
+      select(`Minimum Injured`, `Maximum Injured`) %>% 
+      rename(Minimum = "Minimum Injured",
+             Maximum = "Maximum Injured") %>% 
+      pivot_longer(cols = c("Minimum", "Maximum"),
+                   names_to = "Injured",
+                   values_to = "Value") %>% 
+      group_by(Injured) %>% 
+      summarize(Total = sum(Value)) %>% 
+      mutate(label = glue("Injured: {comma(Total)}")) %>% 
+      ggplot(aes(Total, reorder(Injured, Total), text = label, fill = Injured )) +
+      scale_x_continuous(breaks = seq(0,1750,250)) +
+      geom_col(width = 0.6) +
+      scale_fill_manual(values = alpha(c("#1D267D", "#D4ADFC"),0.9)) +
+      labs(title = "Injured",
+           x = NULL,
+           y = NULL,
+           fill = NULL) +
+      theme(legend.position = "none",
+            plot.background = element_rect(fill = "#C4DFDF", color = "#C4DFDF"),
+            panel.background = element_rect(fill = "#C4DFDF"),
+            panel.grid = element_line(alpha(colour = "#5C469C",alpha = 0.4)),
+            axis.title.x = element_text(colour = "Black", family = "Georgia",face = "bold"),
+            axis.text.x = element_text(angle = 15, color = "Black", face = "bold", family = "Georgia"),
+            axis.text.y = element_text(color="Black", face="italic", family = "Georgia"),
+            plot.title = element_text(face = "bold", family = "Georgia"))
+    
+ggplotly(plot_injured, tooltip = "text")
+```
+
+
+Plot ketiga
+```{r}
+# your code here
+lm_pks <- leaflet(pks_sf) %>% 
+      addProviderTiles(providers$Stamen.Terrain) %>% 
+      addPolygons(fillColor = ~factpal.a(Intensity),
+                  weight = 1,
+                  opacity = 1,
+                  color = "black",
+                  dashArray = "3",
+                  fillOpacity = 0.9,
+                  label = pks_sf$NAME_1,
+                  popup = popup.cont.a) %>% 
+      addLegend("bottomright", 
+                values = ~Intensity,
+                colors =c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), 
+                labels= c("Very High", "High", "Medium", "Low", "None"),
+                title = "Strikes Intensity:",
+                labFormat = labelFormat(digits = 2),
+                opacity = 1)
+lm_pks  
+
+```
+```{r}
+lm_yemen <- leaflet(ymn_sf) %>% 
+      addProviderTiles(providers$Stamen.Terrain) %>% 
+      addPolygons(fillColor = ~factpal.a(Intensity),
+                  weight = 1,
+                  opacity = 1,
+                  color = "black",
+                  dashArray = "3",
+                  fillOpacity = 0.9,
+                  label = ymn_sf$NAME_1,
+                  popup = popup.cont.a) %>% 
+      addLegend("bottomright", 
+                values = ~Intensity,
+                colors =c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), 
+                labels= c("Very High", "High", "Medium", "Low", "None"),
+                title = "Strikes Intensity:",
+                labFormat = labelFormat(digits = 2),
+                opacity = 1)
+    
+lm_yemen
+
+
+
+
+```
+
+```{r}
+lm_soma <- leaflet(soma_sf) %>% 
+      addProviderTiles(providers$Stamen.Terrain) %>% 
+      addPolygons(fillColor = ~factpal.a(Intensity),
+                  weight = 1,
+                  opacity = 1,
+                  color = "black",
+                  dashArray = "3",
+                  fillOpacity = 0.9,
+                  label = soma_sf$NAME_1,
+                  popup = popup.cont.a) %>% 
+      addLegend("bottomright", 
+                values = ~Intensity,
+                colors =c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), 
+                labels= c("Very High", "High", "Medium", "Low", "None"),
+                title = "Strikes Intensity:",
+                labFormat = labelFormat(digits = 2),
+                opacity = 1)
+    
+lm_soma
+
+
+
+```
+
+```{r}
+lm_afg <- leaflet(afg_sf) %>% 
+      addProviderTiles(providers$Stamen.Terrain) %>% 
+      addPolygons(fillColor = ~factpal.a(Intensity),
+                  weight = 1,
+                  opacity = 1,
+                  color = "black",
+                  dashArray = "3",
+                  fillOpacity = 0.9,
+                  label = afg_sf$NAME_1,
+                  popup = popup.cont.a) %>% 
+      addLegend("bottomright", 
+                values = ~Intensity,
+                colors =c("#E74646", "#FA9884", "#FFE5CA", "#FFF3E2","#89375F"), 
+                labels= c("Very High", "High", "Medium", "Low", "None"),
+                title = "Strikes Intensity:",
+                labFormat = labelFormat(digits = 2),
+                opacity = 1)
+    
+lm_afg
+```
+Buat chunk baru apabila ada lebih dari 3 plot.
+
+# Where
+
+Bagaimana desain layout atau tata letak dashboard yang akan dibuat?
+
+**Jawab**
+
+Contoh penulisan layout. 
+
+Tab atau halaman pertama
+
+- Presiden Reported Strikes
+- Civilian Casualties Rate (in Percent)
+- Latar Belakang (Dataset, Pengantar)
+- Pie Diagram yang membandingkan Total serangan yang terkonfirmasi pihak USA dengan apa yang dilaporkan oleh para Reported
+- Solusi
+
+Tab atau halaman kedua
+
+- Berhubungan dengan Jumlah Korban (Casualties)
+- Opsi filter periode Presiden dan Lokasi
+- Informasi Total Strikes, Civilians Death dan Total Death
+- Line bar untuk Strikes Timeline per Quartal
+- Barh untuk memvisualisasikan jumlah korban meninggal dan terluka
+
+Tab atau halaman Ketiga
+
+- Menampilkan Mapping Wilayah dengan intensitas serangan drone disetiap negaranya
+
+Tab atau halaman Keempat
+
+- Menampilkan Dataset yang sudah dijadikan satu kesatuan dan terintegrasi dari 4 dataset yang didapat
+
+Tab atau halaman Kelima
+
+- Menampilkan Source code untuk requirements yang dibutuhkan secara lebih spresifik melalui github
+
